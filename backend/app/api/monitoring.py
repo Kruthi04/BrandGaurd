@@ -1,5 +1,5 @@
 """Monitoring endpoints - Yutori scouts and Tavily web searches."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
 
@@ -61,3 +61,37 @@ async def crawl_url(url: str):
     """Crawl a specific URL with Tavily for brand content."""
     # TODO: Implement with TavilyService
     raise HTTPException(status_code=501, detail="Not yet implemented")
+
+@router.post("/webhooks/yutori")
+async def yutori_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Webhook receiver for Yutori scout updates.
+    
+    When Yutori finds mentions, parse them and trigger the pipeline.
+    """
+    import logging
+    from uuid import uuid4
+    from app.services.agent.orchestrator import BrandGuardPipeline
+    
+    logger = logging.getLogger(__name__)
+    try:
+        payload = await request.json()
+        logger.info(f"Received Yutori Webhook: {payload}")
+        
+        mentions = payload.get("mentions", [])
+        if not mentions:
+            # Fallback for hackathon testing if payload shape differs
+            mentions = [{"id": str(uuid4()), "content": str(payload), "brand_id": "test_brand"}]
+            
+        pipeline = BrandGuardPipeline()
+        job_ids = []
+        
+        for mention in mentions:
+            job_id = str(uuid4())
+            background_tasks.add_task(pipeline.process_mention, mention, job_id)
+            job_ids.append(job_id)
+            
+        return {"status": "received", "jobs_started": len(job_ids), "job_ids": job_ids}
+        
+    except Exception as e:
+        logger.error(f"Error processing Yutori webhook: {e}")
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")

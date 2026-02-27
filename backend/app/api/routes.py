@@ -26,7 +26,7 @@ app.add_middleware(
 app.include_router(monitoring_router, prefix="/api/monitoring", tags=["monitoring"])
 app.include_router(analysis_router, prefix="/api", tags=["analysis", "senso"])
 app.include_router(graph_router, prefix="/api/graph", tags=["graph"])
-app.include_router(agent_router, prefix="/api/agent", tags=["agent"])
+app.include_router(agent_router, prefix="/api", tags=["agent", "pipeline"])
 
 
 @app.get("/")
