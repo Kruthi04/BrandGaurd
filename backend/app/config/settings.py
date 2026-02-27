@@ -29,9 +29,9 @@ class Settings:
     YUTORI_API_KEY: str = os.getenv("YUTORI_API_KEY", "")
     YUTORI_API_BASE_URL: str = os.getenv("YUTORI_API_BASE_URL", "https://api.yutori.com")
 
-    # Modulate - voice/audio analysis
+    # Modulate - voice/audio transcription and analysis (Velma-2)
     MODULATE_API_KEY: str = os.getenv("MODULATE_API_KEY", "")
-    MODULATE_API_BASE_URL: str = os.getenv("MODULATE_API_BASE_URL", "https://api.modulate.ai")
+    MODULATE_API_BASE_URL: str = os.getenv("MODULATE_API_BASE_URL", "https://modulate-developer-apis.com")
 
     # OpenAI - for agent orchestration LLM
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
