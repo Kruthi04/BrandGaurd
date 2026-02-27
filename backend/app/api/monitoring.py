@@ -12,8 +12,8 @@ import httpx
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# In-memory brand↔scout mapping (sufficient for hackathon demo)
-_brand_scouts: dict[str, str] = {}  # brand_id -> scout_id
+# In-memory scout↔brand mapping (sufficient for hackathon demo)
+_scout_to_brand: dict[str, dict] = {}  # scout_id -> {"brand_id": ..., "brand_name": ...}
 
 
 # ── Request Models ──────────────────────────────────────────────
@@ -22,6 +22,7 @@ class StartMonitoringRequest(BaseModel):
     brand_id: str
     brand_name: str
     interval: int = 21600  # 6h default
+    webhook_url: Optional[str] = None
 
 
 class StopMonitoringRequest(BaseModel):
@@ -60,9 +61,13 @@ async def start_monitoring(request: StartMonitoringRequest):
             output_schema=BRAND_MENTION_SCHEMA,
             output_interval=request.interval,
             skip_email=True,
+            webhook_url=request.webhook_url,
         )
         scout_id = result.get("id", "")
-        _brand_scouts[request.brand_id] = scout_id
+        _scout_to_brand[scout_id] = {
+            "brand_id": request.brand_id,
+            "brand_name": request.brand_name,
+        }
         return {"scout_id": scout_id, "status": "active"}
     except httpx.HTTPStatusError as exc:
         logger.error("Yutori create_scout error: %s", exc.response.text)
@@ -77,9 +82,7 @@ async def stop_monitoring(request: StopMonitoringRequest):
     client = _yutori()
     try:
         await client.stop_scout(request.scout_id)
-        for k, v in list(_brand_scouts.items()):
-            if v == request.scout_id:
-                del _brand_scouts[k]
+        _scout_to_brand.pop(request.scout_id, None)
         return {"status": "stopped"}
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
@@ -144,6 +147,12 @@ async def yutori_webhook(request: Request):
     body = await request.json()
     logger.info("Yutori webhook received: %s", str(body)[:200])
 
+    scout_id = body.get("scout_id") or body.get("task_id", "")
+    brand_info = _scout_to_brand.get(scout_id, {
+        "brand_id": body.get("brand_id", "acme-corp"),
+        "brand_name": body.get("brand_name", "Acme Corp"),
+    })
+
     structured = body.get("structured_result") or body.get("result", {})
     mentions = []
     if isinstance(structured, dict):
@@ -162,8 +171,8 @@ async def yutori_webhook(request: Request):
                 score = min(score, 40)
 
             await neo4j.store_mention({
-                "brand_id": body.get("brand_id", "acme-corp"),
-                "brand_name": body.get("brand_name", "Acme Corp"),
+                "brand_id": brand_info["brand_id"],
+                "brand_name": brand_info["brand_name"],
                 "platform": m.get("platform", "unknown"),
                 "claim": m.get("claim", ""),
                 "accuracy_score": score,

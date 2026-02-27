@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
 
-from app.services.yutori.client import YutoriClient, PLATFORM_URLS
+from app.services.yutori.client import YutoriClient, PLATFORM_URLS, NO_AUTH_PLATFORMS
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -49,44 +49,69 @@ _BROWSE_CLAIMS_SCHEMA = {
     "properties": {
         "responses": {
             "type": "array",
+            "description": "List of queries asked to the AI platform and their responses",
             "items": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string"},
-                    "response": {"type": "string"},
+                    "query": {"type": "string", "description": "The question asked to the AI platform"},
+                    "response": {"type": "string", "description": "The full response from the AI platform"},
                     "claims_found": {
                         "type": "array",
+                        "description": "Factual claims about the brand extracted from the response",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "claim": {"type": "string"},
-                                "category": {"type": "string"},
+                                "claim": {"type": "string", "description": "A specific factual claim made about the brand"},
+                                "category": {
+                                    "type": "string",
+                                    "description": "Category of the claim",
+                                    "enum": ["founding", "product", "financial", "partnership", "legal", "personnel", "other"],
+                                },
+                                "accuracy": {
+                                    "type": "string",
+                                    "enum": ["accurate", "inaccurate", "unverifiable", "partially_accurate"],
+                                },
                             },
+                            "required": ["claim"],
                         },
                     },
                 },
+                "required": ["query", "response"],
             },
-        }
+        },
     },
+    "required": ["responses"],
 }
 
 _RESEARCH_SCHEMA = {
     "type": "object",
     "properties": {
-        "correct_information": {"type": "string"},
+        "correct_information": {"type": "string", "description": "The verified correct facts about the claim"},
         "misinformation_sources": {
             "type": "array",
+            "description": "Websites and platforms propagating the misinformation",
             "items": {
                 "type": "object",
                 "properties": {
-                    "url": {"type": "string"},
-                    "platform": {"type": "string"},
-                    "date_found": {"type": "string"},
+                    "url": {"type": "string", "description": "URL of the misinformation source"},
+                    "platform": {"type": "string", "description": "Platform name (e.g. blog, news, AI chatbot)"},
+                    "date_found": {"type": "string", "description": "When the misinformation was published (ISO 8601)"},
+                    "credibility": {
+                        "type": "string",
+                        "enum": ["verified", "credible", "unverified", "disputed"],
+                    },
                 },
+                "required": ["url"],
             },
         },
-        "propagation_chain": {"type": "string", "description": "How the misinformation spread"},
+        "propagation_chain": {"type": "string", "description": "How the misinformation spread from origin to AI platforms"},
+        "severity": {
+            "type": "string",
+            "description": "How severe is this misinformation for the brand",
+            "enum": ["critical", "high", "medium", "low"],
+        },
     },
+    "required": ["correct_information", "misinformation_sources", "propagation_chain"],
 }
 
 
@@ -120,11 +145,14 @@ async def browse_platform(request: BrowsePlatformRequest):
             max_steps=request.max_steps,
             output_schema=_BROWSE_CLAIMS_SCHEMA,
         )
-        return {
+        resp = {
             "task_id": result.get("task_id") or result.get("id"),
             "status": result.get("status", "queued"),
             "view_url": result.get("view_url"),
         }
+        if platform_lower not in NO_AUTH_PLATFORMS:
+            resp["warning"] = f"{request.platform} requires login; results may be limited. Use 'perplexity' for best results."
+        return resp
     except httpx.HTTPStatusError as exc:
         logger.error("Yutori browse error: %s", exc.response.text)
         raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
@@ -159,6 +187,19 @@ async def get_browse_result(request: BrowseTaskStatusRequest):
         elif status == "failed":
             response["error"] = result.get("error", "Task failed")
         return response
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Failed to reach Yutori API")
+
+
+@router.post("/browse/trajectory")
+async def get_browse_trajectory(request: BrowseTaskStatusRequest):
+    """Get step-by-step screenshots and actions from a completed browsing task."""
+    client = _yutori()
+    try:
+        result = await client.get_browse_trajectory(request.task_id)
+        return result
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
     except httpx.RequestError:

@@ -17,7 +17,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 30.0
-_POLL_TIMEOUT = 300
+_POLL_TIMEOUT = 600
 _POLL_INTERVAL = 5
 
 BRAND_MENTION_SCHEMA = {
@@ -58,11 +58,14 @@ BRAND_MENTION_SCHEMA = {
 }
 
 PLATFORM_URLS = {
+    "perplexity": "https://www.perplexity.ai",
     "chatgpt": "https://chat.openai.com",
     "claude": "https://claude.ai",
-    "perplexity": "https://www.perplexity.ai",
     "gemini": "https://gemini.google.com",
 }
+
+# Platforms that work without login (preferred for browsing tasks)
+NO_AUTH_PLATFORMS = {"perplexity"}
 
 
 class YutoriClient:
@@ -134,9 +137,7 @@ class YutoriClient:
         if webhook_url:
             payload["webhook_url"] = webhook_url
         if output_schema:
-            payload["task_spec"] = {
-                "output_schema": {"type": "json", "json_schema": output_schema}
-            }
+            payload["output_schema"] = output_schema
 
         logger.info("Creating Yutori scout: %s", query[:80])
         return await self._request("POST", "/v1/scouting/tasks", payload)
@@ -163,7 +164,15 @@ class YutoriClient:
 
     async def stop_scout(self, scout_id: str) -> dict[str, Any]:
         """Mark a scout as done (stops future runs)."""
-        return await self._request("PUT", f"/v1/scouting/tasks/{scout_id}", {"status": "done"})
+        return await self._request("POST", f"/v1/scouting/tasks/{scout_id}/done")
+
+    async def pause_scout(self, scout_id: str) -> dict[str, Any]:
+        """Pause a scout's scheduled runs."""
+        return await self._request("POST", f"/v1/scouting/tasks/{scout_id}/pause")
+
+    async def resume_scout(self, scout_id: str) -> dict[str, Any]:
+        """Resume a paused scout."""
+        return await self._request("POST", f"/v1/scouting/tasks/{scout_id}/resume")
 
     async def delete_scout(self, scout_id: str) -> dict[str, Any]:
         """Delete a scout permanently."""
@@ -199,9 +208,7 @@ class YutoriClient:
         if start_url:
             payload["start_url"] = start_url
         if output_schema:
-            payload["task_spec"] = {
-                "output_schema": {"type": "json", "json_schema": output_schema}
-            }
+            payload["output_schema"] = output_schema
 
         logger.info("Creating Yutori browse task: %s", task[:80])
         return await self._request("POST", "/v1/browsing/tasks", payload)
@@ -209,6 +216,10 @@ class YutoriClient:
     async def get_browse_result(self, task_id: str) -> dict[str, Any]:
         """Get the current status and result of a browsing task."""
         return await self._request("GET", f"/v1/browsing/tasks/{task_id}")
+
+    async def get_browse_trajectory(self, task_id: str) -> dict[str, Any]:
+        """Get step-by-step screenshots and actions from a browsing task."""
+        return await self._request("GET", f"/v1/browsing/tasks/{task_id}/trajectory")
 
     async def poll_browse_result(
         self, task_id: str, timeout: int = _POLL_TIMEOUT, interval: int = _POLL_INTERVAL
@@ -246,9 +257,7 @@ class YutoriClient:
             "user_timezone": user_timezone,
         }
         if output_schema:
-            payload["task_spec"] = {
-                "output_schema": {"type": "json", "json_schema": output_schema}
-            }
+            payload["output_schema"] = output_schema
 
         logger.info("Creating Yutori research task: %s", query[:80])
         return await self._request("POST", "/v1/research/tasks", payload)
