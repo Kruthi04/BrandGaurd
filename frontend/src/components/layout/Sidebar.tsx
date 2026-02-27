@@ -4,6 +4,7 @@ import {
   Radar,
   GitFork,
   AlertTriangle,
+  CheckCircle,
   Bot,
   Settings,
   Shield,
@@ -11,12 +12,13 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { label: "Monitoring", icon: Radar, href: "/monitoring" },
-  { label: "Graph Explorer", icon: GitFork, href: "/graph" },
-  { label: "Threats", icon: AlertTriangle, href: "/threats" },
-  { label: "Agent", icon: Bot, href: "/agent" },
-  { label: "Settings", icon: Settings, href: "/settings" },
+  { label: "Dashboard",   icon: LayoutDashboard, href: "/"            },
+  { label: "Monitoring",  icon: Radar,            href: "/monitoring"  },
+  { label: "Graph",       icon: GitFork,          href: "/graph"       },
+  { label: "Threats",     icon: AlertTriangle,    href: "/threats"     },
+  { label: "Corrections", icon: CheckCircle,      href: "/corrections" },
+  { label: "Agent",       icon: Bot,              href: "/agent"       },
+  { label: "Settings",    icon: Settings,         href: "/settings"    },
 ];
 
 export default function Sidebar() {
