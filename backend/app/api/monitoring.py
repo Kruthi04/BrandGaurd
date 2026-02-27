@@ -1,5 +1,7 @@
-"""Monitoring endpoints — Yutori scouts and webhook receiver."""
+"""Monitoring endpoints — Yutori scouts, Tavily web searches, and webhook receiver."""
 import logging
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from pydantic import BaseModel
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
@@ -141,9 +143,19 @@ async def delete_scout(scout_id: str):
 
 # ── Webhook Receiver ────────────────────────────────────────────
 
+@router.post("/crawl")
+async def crawl_url(url: str):
+    """Crawl a specific URL with Tavily for brand content."""
+    # TODO: Implement with TavilyService
+    raise HTTPException(status_code=501, detail="Not yet implemented")
+
+
 @router.post("/webhooks/yutori")
-async def yutori_webhook(request: Request):
-    """Receive scout update webhooks from Yutori, parse mentions, store in Neo4j."""
+async def yutori_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Receive scout update webhooks from Yutori, parse mentions, store in Neo4j, and trigger pipeline."""
+    from uuid import uuid4
+    from app.services.agent.orchestrator import BrandGuardPipeline
+
     body = await request.json()
     logger.info("Yutori webhook received: %s", str(body)[:200])
 
@@ -160,6 +172,7 @@ async def yutori_webhook(request: Request):
     elif isinstance(structured, str):
         return {"received": True, "parsed_mentions": 0, "note": "Unstructured result"}
 
+    # Store mentions in Neo4j
     stored = 0
     try:
         neo4j = get_neo4j_client()
@@ -183,4 +196,18 @@ async def yutori_webhook(request: Request):
     except Exception as exc:
         logger.error("Failed to store webhook mentions in Neo4j: %s", exc)
 
-    return {"received": True, "parsed_mentions": len(mentions), "stored_in_neo4j": stored}
+    # Trigger pipeline for each mention
+    pipeline = BrandGuardPipeline()
+    job_ids = []
+    for mention in mentions:
+        job_id = str(uuid4())
+        background_tasks.add_task(pipeline.process_mention, mention, job_id)
+        job_ids.append(job_id)
+
+    return {
+        "received": True,
+        "parsed_mentions": len(mentions),
+        "stored_in_neo4j": stored,
+        "jobs_started": len(job_ids),
+        "job_ids": job_ids,
+    }

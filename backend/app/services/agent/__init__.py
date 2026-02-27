@@ -1,3 +1,3 @@
-from .orchestrator import AgentOrchestrator
+from .orchestrator import BrandGuardPipeline
 
-__all__ = ["AgentOrchestrator"]
+__all__ = ["BrandGuardPipeline"]
