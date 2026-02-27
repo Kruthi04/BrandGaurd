@@ -112,7 +112,7 @@ async def remediate_content(request: RemediateRequest):
         response = await geo_client.remediate(
             context=f"Mention {request.mention_id} for Brand {request.brand_id}",
             optimize_for="brand_safety",
-            targets=["social_media"]
+            target_networks=["social_media"]
         )
         return RemediateResponse(
             correction_strategy=response.get("strategy", "Standard brand correction strategy applied."),
@@ -131,8 +131,9 @@ async def ingest_content(request: IngestContentRequest):
     """Ingest brand ground truth into Senso Context OS SDK."""
     try:
         response = await sdk_client.ingest_content(
-            content=request.content,
-            title=request.title
+            title=request.title,
+            summary=request.content[:200],
+            text=request.content,
         )
         return IngestContentResponse(
             content_id=response.get("id", "mock_content_id_123"),

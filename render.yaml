@@ -7,10 +7,16 @@ services:
     name: brandguard-api
     runtime: python
     plan: starter
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && python main.py
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
     envVars:
-      - key: SENSO_API_KEY
+      - key: SENSO_GEO_API_KEY
+        sync: false
+      - key: SENSO_SDK_API_KEY
+        sync: false
+      - key: SENSO_API_BASE_URL
         sync: false
       - key: TAVILY_API_KEY
         sync: false
@@ -22,16 +28,24 @@ services:
         sync: false
       - key: YUTORI_API_KEY
         sync: false
+      - key: YUTORI_API_BASE_URL
+        sync: false
       - key: MODULATE_API_KEY
         sync: false
+      - key: MODULATE_API_BASE_URL
+        sync: false
       - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: "gpt-4o"
+      - key: CORS_ALLOWED_ORIGIN
         sync: false
       - key: PORT
         value: "8000"
 
   # Frontend
   - type: web
-    name: brandguard-frontend
+    name: brandguard-dashboard
     runtime: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist

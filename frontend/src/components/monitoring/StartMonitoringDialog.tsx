@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 interface StartMonitoringDialogProps {
   onClose: () => void;
@@ -13,38 +14,37 @@ export default function StartMonitoringDialog({ onClose, onCreated }: StartMonit
   const [interval, setInterval] = useState("3600");
   const [loading, setLoading] = useState(false);
 
+  function slugify(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!brandName.trim()) return;
     setLoading(true);
     try {
-      // Try real API; fall back gracefully
-      const res = await fetch("/api/monitoring/scouts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: `Monitor mentions of "${brandName.trim()}" across AI platforms (ChatGPT, Claude, Gemini, Perplexity) and flag inaccurate information.`,
-          brand_name: brandName.trim(),
-          output_interval: Number(interval),
-        }),
-      }).catch(() => null);
+      // POST to /monitoring/start with correct payload {brand_id, brand_name}
+      const data = await api.post<{ id: string; display_name: string; query: string }>("/monitoring/start", {
+        brand_id: slugify(brandName),
+        brand_name: brandName.trim(),
+      });
 
-      if (res?.ok) {
-        const data = await res.json();
-        onCreated(data);
-        toast.success(`Scout created for "${brandName}"`);
-      } else {
-        // Mock success for demo
-        onCreated({
-          id: `s-${Date.now()}`,
-          display_name: `${brandName} — AI Monitor`,
-          query: `Monitor mentions of "${brandName}" across AI platforms`,
-        });
-        toast.success(`Scout created for "${brandName}" (demo mode)`);
-      }
+      onCreated(data);
+      toast.success(`Scout created for "${brandName}"`);
       onClose();
     } catch {
-      toast.error("Failed to create scout");
+      // Fallback: mock success for demo
+      onCreated({
+        id: `s-${Date.now()}`,
+        display_name: `${brandName} — AI Monitor`,
+        query: `Monitor mentions of "${brandName}" across AI platforms`,
+      });
+      toast.success(`Scout created for "${brandName}" (demo mode)`);
+      onClose();
     } finally {
       setLoading(false);
     }

@@ -9,12 +9,12 @@ import {
   mockBrandHealth,
   mockTrendData,
   mockAlerts,
-  MOCK_BRAND_NAME,
 } from "@/lib/mockData";
+import { getActiveBrand } from "@/lib/brand";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
-const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === "true" || true; // default to mocks
+const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === "true";
 
 function ActiveScoutsCard({ count }: { count: number }) {
   return (
@@ -29,26 +29,57 @@ function ActiveScoutsCard({ count }: { count: number }) {
 }
 
 export default function Dashboard() {
-  const { data: health, isLoading } = useQuery({
-    queryKey: ["brandHealth"],
-    queryFn: () => api.get<typeof mockBrandHealth>("/graph/brand/default/health"),
+  const brandId = getActiveBrand();
+
+  const { data: rawHealth, isLoading, error } = useQuery({
+    queryKey: ["brandHealth", brandId],
+    queryFn: async () => {
+      const res = await api.get<{
+        overall_accuracy: number;
+        total_mentions: number;
+        accurate_mentions: number;
+        threats: number;
+        by_platform: Record<string, { accuracy: number; mentions: number }>;
+      }>(`/graph/brand/${brandId}/health`);
+      return {
+        reputation_score: res.overall_accuracy ?? 0,
+        total_mentions: res.total_mentions ?? 0,
+        active_scouts: 0,
+        by_platform: res.by_platform ?? {},
+      };
+    },
     enabled: !USE_MOCKS,
-    retry: false,
+    retry: 1,
   });
 
-  const healthData = USE_MOCKS ? mockBrandHealth : (health ?? mockBrandHealth);
+  const healthData = (USE_MOCKS || error) ? mockBrandHealth : (rawHealth ?? mockBrandHealth);
+
+  const { data: sourcesData } = useQuery({
+    queryKey: ["brandSources", brandId],
+    queryFn: async () => {
+      const res = await api.get<{ sources: typeof mockAlerts } | typeof mockAlerts>(`/graph/brand/${brandId}/sources`);
+      if (res && !Array.isArray(res) && Array.isArray((res as { sources: typeof mockAlerts }).sources)) {
+        return (res as { sources: typeof mockAlerts }).sources;
+      }
+      return Array.isArray(res) ? res : [];
+    },
+    enabled: !USE_MOCKS,
+    retry: 1,
+  });
+
+  const alertsData = (USE_MOCKS || !sourcesData) ? mockAlerts : sourcesData;
 
   return (
     <AppLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Brand reputation overview at a glance.</p>
+          <p className="text-muted-foreground">Brand reputation overview for <strong>{brandId}</strong>.</p>
         </div>
 
         {/* Top row: Health Score + Platform Breakdown + Active Scouts */}
         <div className="grid gap-4 md:grid-cols-3">
-          {isLoading ? (
+          {isLoading && !USE_MOCKS ? (
             <>
               <Skeleton className="h-64" />
               <Skeleton className="h-64" />
@@ -58,7 +89,7 @@ export default function Dashboard() {
             <>
               <BrandHealthCard
                 score={healthData.reputation_score}
-                brandName={MOCK_BRAND_NAME}
+                brandName={brandId}
                 totalMentions={healthData.total_mentions}
               />
               <PlatformBreakdown platforms={healthData.by_platform} />
@@ -70,7 +101,7 @@ export default function Dashboard() {
         {/* Trend chart + Recent alerts */}
         <div className="grid gap-4 md:grid-cols-3">
           <AccuracyTrendChart data={mockTrendData} />
-          <RecentAlerts alerts={mockAlerts} />
+          <RecentAlerts alerts={alertsData} />
         </div>
       </div>
     </AppLayout>

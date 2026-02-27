@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import AppLayout from "@/components/layout/AppLayout";
 import ScoutList from "@/components/monitoring/ScoutList";
 import AudioSources from "@/components/monitoring/AudioSources";
 import StartMonitoringDialog from "@/components/monitoring/StartMonitoringDialog";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { mockScouts } from "@/lib/mockData";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import type { Scout } from "@/types";
 
 type Tab = "scouts" | "audio";
@@ -13,6 +17,24 @@ export default function Monitoring() {
   const [activeTab, setActiveTab]  = useState<Tab>("scouts");
   const [scouts, setScouts]        = useState<Scout[]>(mockScouts as Scout[]);
   const [showDialog, setShowDialog] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  const { data: fetchedScouts, isLoading } = useQuery({
+    queryKey: ["monitoringStatus"],
+    queryFn: async () => {
+      const res = await api.get<{ scouts: Scout[] } | Scout[]>("/monitoring/status");
+      return Array.isArray(res) ? res : res.scouts ?? [];
+    },
+    retry: 1,
+  });
+
+  // Sync fetched data into local state once available
+  useEffect(() => {
+    if (fetchedScouts && !initialized) {
+      setScouts(fetchedScouts);
+      setInitialized(true);
+    }
+  }, [fetchedScouts, initialized]);
 
   function handleScoutCreated(scout: { id: string; display_name: string; query: string }) {
     const newScout: Scout = {
@@ -27,8 +49,16 @@ export default function Monitoring() {
     setScouts((prev) => [newScout, ...prev]);
   }
 
-  function handleDelete(id: string) {
-    setScouts((prev) => prev.filter((s) => s.id !== id));
+  async function handleDelete(id: string) {
+    try {
+      await api.delete(`/monitoring/scouts/${id}`);
+      setScouts((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Scout deleted");
+    } catch {
+      // Fallback: still remove from UI for demo
+      setScouts((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Scout deleted (demo mode)");
+    }
   }
 
   const activeCount = scouts.filter((s) => s.status === "active").length;
@@ -76,10 +106,18 @@ export default function Monitoring() {
         </div>
 
         {activeTab === "scouts" && (
-          <ScoutList
-            scouts={scouts}
-            onDelete={handleDelete}
-          />
+          isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
+          ) : (
+            <ScoutList
+              scouts={scouts}
+              onDelete={handleDelete}
+            />
+          )
         )}
         {activeTab === "audio" && <AudioSources />}
       </div>

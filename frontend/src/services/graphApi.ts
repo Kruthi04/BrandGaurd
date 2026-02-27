@@ -2,26 +2,59 @@
 import { api } from "@/lib/api";
 import type { GraphData } from "@/types";
 
-export async function getEntities(entityType?: string, limit = 50) {
-  const params = new URLSearchParams();
-  if (entityType) params.set("entity_type", entityType);
-  params.set("limit", String(limit));
-  return api.get(`/graph/entities?${params}`);
+// ── Schema Init ─────────────────────────────────────────────────
+
+export async function initSchema(confirm = true) {
+  return api.post<{ status: string; message: string }>("/graph/init", {
+    confirm,
+  });
 }
 
-export async function addEntity(data: {
-  name: string;
-  entity_type: string;
-  properties?: Record<string, unknown>;
-}) {
-  return api.post("/graph/entities", data);
+// ── Store Mention ───────────────────────────────────────────────
+
+export interface StoreMentionRequest {
+  brand_id: string;
+  brand_name?: string;
+  platform: string;
+  claim: string;
+  accuracy_score: number;
+  severity?: string;
+  detected_at?: string;
+  source_urls?: string[];
 }
 
-export async function getBrandNetwork(brandId: string, depth = 2) {
-  return api.get<GraphData>(`/graph/brand/${brandId}/network?depth=${depth}`);
+export async function storeMention(data: StoreMentionRequest) {
+  return api.post("/graph/mentions", data);
 }
 
-export async function getThreats(brandId?: string) {
-  const params = brandId ? `?brand_id=${brandId}` : "";
-  return api.get(`/graph/threats${params}`);
+// ── Store Correction ────────────────────────────────────────────
+
+export interface StoreCorrectionRequest {
+  mention_id: string;
+  content?: string;
+  correction_type?: string;
+  status?: string;
+  created_at?: string;
+}
+
+export async function storeCorrection(data: StoreCorrectionRequest) {
+  return api.post("/graph/corrections", data);
+}
+
+// ── Brand Health ────────────────────────────────────────────────
+
+export async function getBrandHealth(brandId: string) {
+  return api.get(`/graph/brand/${brandId}/health`);
+}
+
+// ── Brand Sources ───────────────────────────────────────────────
+
+export async function getBrandSources(brandId: string, limit = 20) {
+  return api.get(`/graph/brand/${brandId}/sources?limit=${limit}`);
+}
+
+// ── Brand Network (graph visualization) ─────────────────────────
+
+export async function getBrandNetwork(brandId: string) {
+  return api.get<GraphData>(`/graph/brand/${brandId}/network`);
 }
