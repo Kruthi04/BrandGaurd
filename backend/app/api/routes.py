@@ -1,4 +1,6 @@
 """FastAPI application and route definitions for BrandGuard."""
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,10 +15,19 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS - configure appropriately for production
+# CORS - allow local dev and Render-deployed frontend
+_cors_origins = [
+    "http://localhost:5173",
+    "https://brandguard-dashboard.onrender.com",
+]
+# Allow custom origin via env var (e.g. preview deploys)
+_extra_origin = os.getenv("CORS_ALLOWED_ORIGIN")
+if _extra_origin:
+    _cors_origins.append(_extra_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
