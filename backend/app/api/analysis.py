@@ -1,10 +1,12 @@
-"""Analysis endpoints - Senso evaluation, remediation, and rules."""
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+"""Analysis endpoints — Senso evaluation, remediation, rules, and Modulate audio analysis."""
+from typing import Any, Optional, List, Dict
+
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
-from typing import Optional, List, Any, Dict
 import logging
 
 from app.services.senso.client import SensoGEOClient, SensoSDKClient
+from app.services.modulate.client import ModulateService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -82,11 +84,11 @@ async def evaluate_content(request: EvaluateRequest):
     try:
         # Calls the Senso GEO Platform API
         response = await geo_client.evaluate(
-            query=request.query, 
-            brand=request.brand_id, 
+            query=request.query,
+            brand=request.brand_id,
             network=request.platform
         )
-        
+
         # Format response to match required output schema (using mock values if actual API structure differs)
         return EvaluateResponse(
             accuracy_score=response.get("accuracy", 0.85),
@@ -150,7 +152,7 @@ async def generate_content(request: GenerateContentRequest):
     try:
         prompt = f"Generate a {request.format} correction for mention {request.mention_id} regarding brand {request.brand_id}."
         response = await sdk_client.generate(prompt=prompt)
-        
+
         return GenerateContentResponse(
             content=response.get("generated_text", f"This is an auto-generated {request.format} correction."),
             format=request.format
@@ -174,10 +176,10 @@ async def search_content(request: SearchContentRequest):
                 content=item.get("text", ""),
                 relevance=item.get("score", 0.0)
             ))
-            
+
         if not results:
             results = [SearchResult(content="Mock search result from Acme Corp ground truth.", relevance=0.95)]
-            
+
         return SearchContentResponse(results=results)
     except Exception as e:
         logger.error(f"Error searching content: {e}")
@@ -196,14 +198,14 @@ async def setup_rules(request: SetupRulesRequest):
             conditions=request.conditions
         )
         rule_id = rule_response.get("id", "mock_rule_id_456")
-        
+
         # Create trigger
         trigger_response = await sdk_client.create_trigger(
             rule_id=rule_id,
             webhook_url=request.webhook_url
         )
         trigger_id = trigger_response.get("id", "mock_trigger_id_789")
-        
+
         return SetupRulesResponse(
             rule_id=rule_id,
             trigger_id=trigger_id,
@@ -224,35 +226,58 @@ async def senso_webhook(request: Request, background_tasks: BackgroundTasks):
     try:
         payload = await request.json()
         logger.info(f"Received Senso Webhook: {payload}")
-        
+
         # 1. Parse payload
         mention_id = payload.get("id", "unknown_mention")
-        
+
         # 2. Enqueue investigation job
         from app.services.agent.orchestrator import BrandGuardPipeline
         from uuid import uuid4
-        
+
         pipeline = BrandGuardPipeline()
         job_id = str(uuid4())
-        
+
         # Start investigate
         background_tasks.add_task(pipeline.investigate, mention_id, job_id)
-        
+
         return {
-            "status": "received", 
-            "event_id": mention_id, 
+            "status": "received",
+            "event_id": mention_id,
             "investigation_job_id": job_id
         }
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
         raise HTTPException(status_code=400, detail="Invalid webhook payload")
 
-# Keep the original voice endpoint since it was mentioned in the original file
-class VoiceAnalysisRequest(BaseModel):
-    audio_url: str
-    brand_id: str
 
-@router.post("/voice")
-async def analyze_voice(request: VoiceAnalysisRequest):
-    """Analyze voice content for brand safety using Modulate."""
-    raise HTTPException(status_code=501, detail="Not yet implemented")
+@router.post("/audio")
+async def analyze_audio(
+    file: UploadFile = File(..., description="Audio file (MP3, WAV, MP4, FLAC, OGG, etc.)"),
+    brand_name: str = Form(..., description="Brand name to search for in the transcript"),
+    speaker_diarization: bool = Form(True, description="Enable per-speaker labelling"),
+    emotion_signal: bool = Form(True, description="Enable emotion detection per utterance"),
+    fast_english: bool = Form(False, description="Use the English-optimised fast model"),
+) -> dict[str, Any]:
+    """Transcribe an audio file using Modulate Velma-2 and extract brand mentions.
+
+    Returns the full transcript, duration, all utterances, and the subset of
+    utterances that contain the brand name — each annotated with speaker ID,
+    emotion, accent, and timestamps.
+    """
+    audio_bytes = await file.read()
+    filename = file.filename or "audio.mp3"
+
+    service = ModulateService()
+    try:
+        result = await service.analyze_audio(
+            audio_bytes=audio_bytes,
+            filename=filename,
+            brand_name=brand_name,
+            speaker_diarization=speaker_diarization,
+            emotion_signal=emotion_signal,
+            fast_english=fast_english,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return result
