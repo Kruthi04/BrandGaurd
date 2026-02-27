@@ -82,6 +82,8 @@ async def web_search(request: WebSearchRequest):
     except httpx.HTTPStatusError as exc:
         logger.error("Tavily search error: %s", exc.response.text)
         raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except httpx.RequestError as exc:
         logger.error("Tavily search network error: %s", exc)
         raise HTTPException(status_code=502, detail="Failed to reach Tavily API")
@@ -105,6 +107,8 @@ async def extract_content(request: ExtractRequest):
     except httpx.HTTPStatusError as exc:
         logger.error("Tavily extract error: %s", exc.response.text)
         raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except httpx.RequestError as exc:
         logger.error("Tavily extract network error: %s", exc)
         raise HTTPException(status_code=502, detail="Failed to reach Tavily API")

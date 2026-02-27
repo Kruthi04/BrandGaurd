@@ -76,6 +76,9 @@ class TavilyClient:
         Returns:
             Dict with "results", optional "answer", and metadata.
         """
+        if not query or not query.strip():
+            raise ValueError("Search query cannot be empty")
+
         payload: dict[str, Any] = {
             "query": query,
             "topic": topic,
@@ -115,6 +118,8 @@ class TavilyClient:
         Returns:
             Dict with "results" and "failed_results".
         """
+        if not urls:
+            raise ValueError("At least one URL is required for extraction")
         if len(urls) > 20:
             raise ValueError("Tavily extract supports at most 20 URLs per request")
 
