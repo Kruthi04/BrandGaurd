@@ -1,3 +1,3 @@
-from .client import TavilyService
+from .client import TavilyClient, analyze_claim_sources
 
-__all__ = ["TavilyService"]
+__all__ = ["TavilyClient", "analyze_claim_sources"]

@@ -14,7 +14,8 @@ class Settings:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
     # Senso API - content evaluation, rules engine, generation
-    SENSO_API_KEY: str = os.getenv("SENSO_API_KEY", "")
+    SENSO_GEO_API_KEY: str = os.getenv("SENSO_GEO_API_KEY", "")
+    SENSO_SDK_API_KEY: str = os.getenv("SENSO_SDK_API_KEY", "")
     SENSO_API_BASE_URL: str = os.getenv("SENSO_API_BASE_URL", "https://api.senso.ai")
 
     # Tavily API - web search, crawl, research
@@ -42,8 +43,10 @@ class Settings:
     def validate(self) -> list[str]:
         """Return a list of missing required configuration keys."""
         missing = []
-        if not self.SENSO_API_KEY:
-            missing.append("SENSO_API_KEY")
+        if not self.SENSO_GEO_API_KEY:
+            missing.append("SENSO_GEO_API_KEY")
+        if not self.SENSO_SDK_API_KEY:
+            missing.append("SENSO_SDK_API_KEY")
         if not self.TAVILY_API_KEY:
             missing.append("TAVILY_API_KEY")
         if not self.NEO4J_PASSWORD:
