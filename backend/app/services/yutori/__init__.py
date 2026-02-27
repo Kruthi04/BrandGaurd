@@ -1,3 +1,3 @@
-from .client import YutoriService
+from .client import YutoriClient, BRAND_MENTION_SCHEMA, PLATFORM_URLS
 
-__all__ = ["YutoriService"]
+__all__ = ["YutoriClient", "BRAND_MENTION_SCHEMA", "PLATFORM_URLS"]
