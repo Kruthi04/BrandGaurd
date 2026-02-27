@@ -1,0 +1,47 @@
+# Render deployment configuration for BrandGuard
+# See: https://docs.render.com/blueprint-spec
+
+services:
+  # Backend API
+  - type: web
+    name: brandguard-api
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python main.py
+    envVars:
+      - key: SENSO_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: YUTORI_API_KEY
+        sync: false
+      - key: MODULATE_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PORT
+        value: "8000"
+
+  # Frontend
+  - type: web
+    name: brandguard-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: brandguard-api
+          type: web
+          property: host

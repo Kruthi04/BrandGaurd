@@ -1,0 +1,28 @@
+# FastAPI and server
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# HTTP client
+httpx>=0.25.0
+requests>=2.31.0
+
+# Neo4j graph database
+neo4j>=5.14.0
+
+# AI/Agent orchestration
+openai>=1.12.0
+
+# Background tasks and scheduling
+apscheduler>=3.10.0
+
+# WebSocket support
+websockets>=12.0
+
+# CORS and middleware
+python-multipart>=0.0.6
+
+# Logging
+structlog>=23.2.0
