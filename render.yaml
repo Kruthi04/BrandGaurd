@@ -2,7 +2,7 @@
 # See: https://docs.render.com/blueprint-spec
 
 services:
-  # Backend API
+  # Backend API (FastAPI + Uvicorn)
   - type: web
     name: brandguard-api
     runtime: python

@@ -1,7 +1,7 @@
 """Analysis endpoints — Senso evaluation, remediation, rules, and Modulate audio analysis."""
 from typing import Any, Optional, List, Dict
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 import logging
 
@@ -222,18 +222,30 @@ async def setup_rules(request: SetupRulesRequest):
 
 
 @router.post("/webhooks/senso")
-async def senso_webhook(request: Request):
+async def senso_webhook(request: Request, background_tasks: BackgroundTasks):
     """Webhook receiver for Senso triggers."""
     try:
         payload = await request.json()
         logger.info(f"Received Senso Webhook: {payload}")
 
-        # In Phase 8, this will:
         # 1. Parse payload
-        # 2. Create Threat/Alert record
-        # 3. Enqueue investigation job
+        mention_id = payload.get("id", "unknown_mention")
 
-        return {"status": "received", "event_id": payload.get("id", "unknown")}
+        # 2. Enqueue investigation job
+        from app.services.agent.orchestrator import BrandGuardPipeline
+        from uuid import uuid4
+
+        pipeline = BrandGuardPipeline()
+        job_id = str(uuid4())
+
+        # Start investigate
+        background_tasks.add_task(pipeline.investigate, mention_id, job_id)
+
+        return {
+            "status": "received",
+            "event_id": mention_id,
+            "investigation_job_id": job_id
+        }
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
         raise HTTPException(status_code=400, detail="Invalid webhook payload")
