@@ -4,7 +4,9 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { mockCorrections, type MockCorrection, type CorrectionStatus } from "@/lib/mockData";
+import { api } from "@/lib/api";
 
 const TYPE_LABELS: Record<string, string> = {
   blog:  "Blog Post",
@@ -33,10 +35,22 @@ function CorrectionCard({
 
   async function handlePublish() {
     setPublishing(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    onPublish(correction.id);
-    toast.success("Correction published!");
-    setPublishing(false);
+    try {
+      await api.post("/graph/corrections", {
+        mention_id: correction.id,
+        content: correction.correction,
+        correction_type: correction.type,
+        status: "published",
+      });
+      onPublish(correction.id);
+      toast.success("Correction published!");
+    } catch {
+      // Fallback: still update UI for demo
+      onPublish(correction.id);
+      toast.success("Correction published (demo mode)");
+    } finally {
+      setPublishing(false);
+    }
   }
 
   return (
@@ -101,7 +115,11 @@ function CorrectionCard({
 }
 
 export default function Corrections() {
-  const [corrections, setCorrections] = useState(mockCorrections);
+  // No GET /graph/corrections endpoint exists — use mock data as initial state.
+  // Corrections are created via POST /graph/corrections when publishing.
+  const isLoading = false;
+
+  const [corrections, setCorrections] = useState<MockCorrection[]>(mockCorrections);
   const [filterStatus, setFilterStatus] = useState<CorrectionStatus | "all">("all");
 
   function handlePublish(id: string) {
@@ -153,7 +171,13 @@ export default function Corrections() {
           ))}
         </div>
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+        ) : filtered.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">No corrections match your filter.</p>

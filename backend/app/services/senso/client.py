@@ -10,11 +10,12 @@ from typing import Any, Optional, List, Dict
 from app.config import settings
 
 class SensoGEOClient:
-    """GEO Platform API (apiv2.senso.ai)"""
-    
+    """GEO Platform API — configurable via SENSO_API_BASE_URL or falls back to apiv2.senso.ai."""
+
     def __init__(self):
         self.api_key = settings.SENSO_GEO_API_KEY
-        self.base_url = "https://apiv2.senso.ai"
+        configured = getattr(settings, "SENSO_API_BASE_URL", "")
+        self.base_url = configured if configured else "https://apiv2.senso.ai"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -35,7 +36,7 @@ class SensoGEOClient:
             response.raise_for_status()
             return response.json()
 
-    async def remediate(self, context: str, optimize_for: str, targets: list) -> dict:
+    async def remediate(self, context: str, optimize_for: str, target_networks: list) -> dict:
         """Generate correction strategy using Senso GEO."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -44,7 +45,7 @@ class SensoGEOClient:
                 json={
                     "context": context,
                     "optimize_for": optimize_for,
-                    "targets": targets
+                    "target_networks": target_networks
                 }
             )
             response.raise_for_status()
@@ -62,15 +63,16 @@ class SensoSDKClient:
             "Content-Type": "application/json",
         }
 
-    async def ingest_content(self, content: str, title: str) -> dict:
+    async def ingest_content(self, title: str, summary: str, text: str) -> dict:
         """Ingest brand ground truth into Senso SDK."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/knowledge",
+                f"{self.base_url}/content/raw",
                 headers=self.headers,
                 json={
-                    "content": content,
-                    "title": title
+                    "title": title,
+                    "summary": summary,
+                    "text": text,
                 }
             )
             response.raise_for_status()

@@ -1,31 +1,114 @@
 /** API client for analysis endpoints (Senso, Modulate) */
 import { api } from "@/lib/api";
 
-export async function evaluateContent(data: {
+// ── Evaluate (Senso GEO) ────────────────────────────────────────
+
+export interface EvaluateRequest {
+  brand_id: string;
+  query: string;
+  platform: string;
+}
+
+export interface EvaluateResponse {
+  accuracy_score: number;
+  citations: unknown[];
+  missing_info: unknown[];
+}
+
+export async function evaluateContent(data: EvaluateRequest) {
+  return api.post<EvaluateResponse>("/evaluate", data);
+}
+
+// ── Remediate (Senso GEO) ───────────────────────────────────────
+
+export interface RemediateRequest {
+  mention_id: string;
+  brand_id: string;
+}
+
+export interface RemediateResponse {
+  correction_strategy: string;
+  optimized_content: string;
+}
+
+export async function remediateContent(data: RemediateRequest) {
+  return api.post<RemediateResponse>("/remediate", data);
+}
+
+// ── Content Ingest (Senso SDK) ──────────────────────────────────
+
+export interface IngestContentRequest {
+  brand_id: string;
   content: string;
-  brand_id: string;
-  content_type?: string;
-}) {
-  return api.post("/analysis/evaluate", data);
+  title: string;
 }
 
-export async function checkRules(data: {
+export interface IngestContentResponse {
+  content_id: string;
+  status: string;
+}
+
+export async function ingestContent(data: IngestContentRequest) {
+  return api.post<IngestContentResponse>("/content/ingest", data);
+}
+
+// ── Content Generate (Senso SDK) ────────────────────────────────
+
+export interface GenerateContentRequest {
+  brand_id: string;
+  mention_id: string;
+  format: "blog_post" | "faq" | "social_media";
+}
+
+export interface GenerateContentResponse {
   content: string;
-  brand_id: string;
-}) {
-  return api.post("/analysis/rules/check", data);
+  format: string;
 }
 
-export async function generateResponse(brandId: string, context: string) {
-  return api.post(`/analysis/generate?brand_id=${brandId}&context=${encodeURIComponent(context)}`, {});
+export async function generateContent(data: GenerateContentRequest) {
+  return api.post<GenerateContentResponse>("/content/generate", data);
 }
 
-export async function analyzeVoice(data: {
-  audio_url: string;
+// ── Content Search (Senso SDK) ──────────────────────────────────
+
+export interface SearchContentRequest {
   brand_id: string;
-}) {
-  return api.post("/analysis/voice", data);
+  query: string;
 }
+
+export interface SearchResult {
+  content: string;
+  relevance: number;
+}
+
+export interface SearchContentResponse {
+  results: SearchResult[];
+}
+
+export async function searchContent(data: SearchContentRequest) {
+  return api.post<SearchContentResponse>("/content/search", data);
+}
+
+// ── Rules Setup (Senso SDK) ─────────────────────────────────────
+
+export interface SetupRulesRequest {
+  brand_id: string;
+  rule_name: string;
+  conditions: Record<string, unknown>;
+  webhook_url: string;
+}
+
+export interface SetupRulesResponse {
+  rule_id: string;
+  trigger_id: string;
+  status: string;
+}
+
+export async function setupRules(data: SetupRulesRequest) {
+  return api.post<SetupRulesResponse>("/rules/setup", data);
+}
+
+// ── Audio Analysis (Modulate Velma-2) ───────────────────────────
 
 export interface ModulateUtterance {
   utterance_uuid: string;
@@ -58,16 +141,5 @@ export async function analyzeAudio(
   form.append("emotion_signal", String(options.emotionSignal ?? true));
   form.append("fast_english", String(options.fastEnglish ?? false));
 
-  const baseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-  const response = await fetch(`${baseUrl}/api/analysis/audio`, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(err.detail ?? "Audio analysis failed");
-  }
-
-  return response.json();
+  return api.postForm<AudioAnalysisResult>("/audio", form);
 }

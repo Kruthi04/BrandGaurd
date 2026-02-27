@@ -17,15 +17,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS - allow local dev and Render-deployed frontend
+# CORS - configure appropriately for production
 _cors_origins = [
     "http://localhost:5173",
     "https://brandguard-dashboard.onrender.com",
 ]
-# Allow custom origin via env var (e.g. preview deploys)
-_extra_origin = os.getenv("CORS_ALLOWED_ORIGIN")
-if _extra_origin:
-    _cors_origins.append(_extra_origin)
+_custom_origin = os.getenv("CORS_ALLOWED_ORIGIN")
+if _custom_origin:
+    _cors_origins.append(_custom_origin)
 
 app.add_middleware(
     CORSMiddleware,

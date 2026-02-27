@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { mockAlerts, type MockAlert, type AlertSeverity, type AlertStatus } from "@/lib/mockData";
+import { getActiveBrand } from "@/lib/brand";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 function relativeTime(iso: string) {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
@@ -40,18 +44,38 @@ function AlertCard({ alert, onStatusChange }: {
 
   async function handleInvestigate() {
     setInvestigating(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    onStatusChange(alert.id, "investigating");
-    toast.success("Investigation started — Tavily is tracing sources…");
-    setInvestigating(false);
+    try {
+      await api.post("/investigate/research", {
+        claim: alert.claim,
+        brand_id: "default",
+      });
+      onStatusChange(alert.id, "investigating");
+      toast.success("Investigation started — Tavily is tracing sources…");
+    } catch {
+      // Fallback: still update UI status for demo
+      onStatusChange(alert.id, "investigating");
+      toast.success("Investigation started (demo mode)");
+    } finally {
+      setInvestigating(false);
+    }
   }
 
   async function handleAutoCorrect() {
     setCorrecting(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    onStatusChange(alert.id, "corrected");
-    toast.success("Correction generated and submitted via Senso GEO");
-    setCorrecting(false);
+    try {
+      await api.post("/remediate", {
+        mention_id: alert.id,
+        brand_id: "default",
+      });
+      onStatusChange(alert.id, "corrected");
+      toast.success("Correction generated and submitted via Senso GEO");
+    } catch {
+      // Fallback: still update UI status for demo
+      onStatusChange(alert.id, "corrected");
+      toast.success("Correction generated (demo mode)");
+    } finally {
+      setCorrecting(false);
+    }
   }
 
   return (
@@ -121,13 +145,40 @@ function AlertCard({ alert, onStatusChange }: {
 }
 
 export default function Threats() {
-  const [alerts, setAlerts] = useState(
-    [...mockAlerts].sort(
-      (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
-    )
+  const brandId = getActiveBrand();
+
+  const { data: fetchedAlerts, isLoading } = useQuery({
+    queryKey: ["brandSources", brandId],
+    queryFn: async () => {
+      const res = await api.get<{ sources: MockAlert[] } | MockAlert[]>(`/graph/brand/${brandId}/sources`);
+      // Backend returns { sources: [...] }, unwrap it
+      if (res && !Array.isArray(res) && Array.isArray((res as { sources: MockAlert[] }).sources)) {
+        return (res as { sources: MockAlert[] }).sources;
+      }
+      return Array.isArray(res) ? res : [];
+    },
+    retry: 1,
+  });
+
+  const sortedMock = [...mockAlerts].sort(
+    (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
   );
+
+  const [alerts, setAlerts] = useState<MockAlert[]>(sortedMock);
+  const [initialized, setInitialized] = useState(false);
   const [filterSeverity, setFilterSeverity] = useState<AlertSeverity | "all">("all");
   const [filterStatus, setFilterStatus]     = useState<AlertStatus | "all">("all");
+
+  // Sync fetched data into local state once available
+  useEffect(() => {
+    if (fetchedAlerts && !initialized) {
+      const sorted = [...fetchedAlerts].sort(
+        (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
+      );
+      setAlerts(sorted);
+      setInitialized(true);
+    }
+  }, [fetchedAlerts, initialized]);
 
   function updateStatus(id: string, status: AlertStatus) {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
@@ -189,7 +240,13 @@ export default function Threats() {
         </div>
 
         {/* Alert list */}
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+        ) : filtered.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">No threats match your filters.</p>

@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
+import { setActiveBrand } from "@/lib/brand";
 
 interface BrandFact {
   key: string;
@@ -29,42 +31,66 @@ export default function Settings() {
     setFacts((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function slugify(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!brandName.trim()) return;
     setLoading(true);
 
+    const brand_id = slugify(brandName);
+    const factsContent = facts
+      .filter((f) => f.key.trim() && f.value.trim())
+      .map((f) => `${f.key}: ${f.value}`)
+      .join("\n");
+    const fullContent = [
+      description ? `Description: ${description}` : "",
+      industry ? `Industry: ${industry}` : "",
+      factsContent,
+    ].filter(Boolean).join("\n");
+
     try {
-      // 1. Push ground truth to Senso
-      await fetch("/api/content/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_name: brandName, facts }),
+      // 1. Push ground truth to Senso — expects {brand_id, content, title}
+      await api.post("/content/ingest", {
+        brand_id,
+        content: fullContent,
+        title: `${brandName} - Ground Truth Facts`,
       }).catch(() => null);
 
-      // 2. Create brand node in Neo4j
-      await fetch("/api/graph/mentions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_name: brandName, industry, description }),
+      // 2. Create brand mention node in Neo4j — expects {brand_id, platform, claim, accuracy_score, source_urls}
+      await api.post("/graph/mentions", {
+        brand_id,
+        platform: "brandguard",
+        claim: `Brand registered: ${brandName}. ${description}`,
+        accuracy_score: 100,
+        source_urls: [],
       }).catch(() => null);
 
-      // 3. Set up Senso rules
-      await fetch("/api/rules/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_name: brandName, facts }),
+      // 3. Set up Senso rules — expects {brand_id, rule_name, conditions, webhook_url}
+      await api.post("/rules/setup", {
+        brand_id,
+        rule_name: `${brandName} accuracy monitoring`,
+        conditions: facts
+          .filter((f) => f.key.trim() && f.value.trim())
+          .map((f) => ({ field: f.key, expected: f.value })),
+        webhook_url: `${window.location.origin}/api/webhooks/senso`,
       }).catch(() => null);
 
-      // 4. Start Yutori scout
-      await fetch("/api/monitoring/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_name: brandName }),
+      // 4. Start Yutori scout — expects {brand_id, brand_name}
+      await api.post("/monitoring/start", {
+        brand_id,
+        brand_name: brandName.trim(),
       }).catch(() => null);
 
+      setActiveBrand(brand_id);
       setSubmitted(true);
-      toast.success(`Brand "${brandName}" onboarded successfully!`);
+      toast.success(`Brand "${brandName}" onboarded! All pages now track this brand.`);
     } catch {
       toast.error("Onboarding failed — please try again.");
     } finally {
