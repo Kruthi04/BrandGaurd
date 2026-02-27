@@ -1,3 +1,3 @@
-from .client import SensoService
+from .client import SensoGEOClient, SensoSDKClient
 
-__all__ = ["SensoService"]
+__all__ = ["SensoGEOClient", "SensoSDKClient"]
