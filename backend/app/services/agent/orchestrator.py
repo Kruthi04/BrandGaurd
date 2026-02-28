@@ -14,9 +14,9 @@ from datetime import datetime
 
 from app.config import settings
 from app.services.senso import SensoGEOClient, SensoSDKClient
-from app.services.tavily import TavilyService as TavilyClient
-from app.services.neo4j import Neo4jService as Neo4jClient
-from app.services.yutori import YutoriService as YutoriClient
+from app.services.tavily import TavilyClient
+from app.services.neo4j import Neo4jClient
+from app.services.yutori import YutoriClient
 
 logger = logging.getLogger(__name__)
 

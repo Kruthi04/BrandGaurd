@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { mockAlerts, type MockAlert, type AlertSeverity, type AlertStatus } from "@/lib/mockData";
+import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/lib/api";
+import { getActiveBrand, useActiveBrand } from "@/lib/brand";
+import type { Alert, AlertSeverity, AlertStatus } from "@/types";
 
 function relativeTime(iso: string) {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
@@ -16,7 +20,7 @@ function relativeTime(iso: string) {
 const SEVERITY_ORDER: AlertSeverity[] = ["critical", "high", "medium", "low"];
 
 function AccuracyBar({ score }: { score: number }) {
-  const color = score >= 70 ? "bg-green-500" : score >= 45 ? "bg-yellow-500" : "bg-red-500";
+  const color = score >= 70 ? "bg-emerald-500" : score >= 45 ? "bg-yellow-500" : "bg-red-500";
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
@@ -31,31 +35,42 @@ function AccuracyBar({ score }: { score: number }) {
 }
 
 function AlertCard({ alert, onStatusChange }: {
-  alert: MockAlert;
+  alert: Alert;
   onStatusChange: (id: string, status: AlertStatus) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [investigating, setInvestigating] = useState(false);
   const [correcting, setCorrecting] = useState(false);
+  const brandId = getActiveBrand();
 
   async function handleInvestigate() {
     setInvestigating(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    onStatusChange(alert.id, "investigating");
-    toast.success("Investigation started — Tavily is tracing sources…");
-    setInvestigating(false);
+    try {
+      await api.post("/investigate/research", { claim: alert.claim, brand_id: brandId });
+      onStatusChange(alert.id, "investigating");
+      toast.success("Investigation started -- Tavily is tracing sources...");
+    } catch {
+      toast.error("Investigation request failed");
+    } finally {
+      setInvestigating(false);
+    }
   }
 
   async function handleAutoCorrect() {
     setCorrecting(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    onStatusChange(alert.id, "corrected");
-    toast.success("Correction generated and submitted via Senso GEO");
-    setCorrecting(false);
+    try {
+      await api.post("/remediate", { mention_id: alert.id, brand_id: brandId });
+      onStatusChange(alert.id, "corrected");
+      toast.success("Correction generated and submitted");
+    } catch {
+      toast.error("Auto-correct request failed");
+    } finally {
+      setCorrecting(false);
+    }
   }
 
   return (
-    <Card className={`transition-all ${alert.severity === "critical" ? "border-red-300" : ""}`}>
+    <Card className={`transition-all ${alert.severity === "critical" ? "border-red-500/50" : ""}`}>
       <CardContent className="pt-4 space-y-3">
         {/* Header row */}
         <div className="flex items-start justify-between gap-3">
@@ -86,16 +101,20 @@ function AlertCard({ alert, onStatusChange }: {
         {/* Expanded detail */}
         {expanded && (
           <div className="space-y-3 pt-2 border-t">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1">Context</p>
-              <p className="text-sm">{alert.context}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1">Suggested correction</p>
-              <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30 rounded p-2">
-                {alert.suggested_correction}
-              </p>
-            </div>
+            {alert.context && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Context</p>
+                <p className="text-sm">{alert.context}</p>
+              </div>
+            )}
+            {alert.suggested_correction && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Suggested correction</p>
+                <p className="text-sm text-emerald-400 bg-emerald-500/10 rounded p-2">
+                  {alert.suggested_correction}
+                </p>
+              </div>
+            )}
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -103,14 +122,14 @@ function AlertCard({ alert, onStatusChange }: {
                 disabled={investigating || alert.status === "investigating" || alert.status === "corrected"}
                 onClick={handleInvestigate}
               >
-                {investigating ? "Investigating…" : "Investigate"}
+                {investigating ? "Investigating..." : "Investigate"}
               </Button>
               <Button
                 size="sm"
                 disabled={correcting || alert.status === "corrected"}
                 onClick={handleAutoCorrect}
               >
-                {correcting ? "Correcting…" : "Auto-Correct"}
+                {correcting ? "Correcting..." : "Auto-Correct"}
               </Button>
             </div>
           </div>
@@ -121,16 +140,27 @@ function AlertCard({ alert, onStatusChange }: {
 }
 
 export default function Threats() {
-  const [alerts, setAlerts] = useState(
-    [...mockAlerts].sort(
-      (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
-    )
-  );
+  const brandId = useActiveBrand();
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, AlertStatus>>({});
   const [filterSeverity, setFilterSeverity] = useState<AlertSeverity | "all">("all");
   const [filterStatus, setFilterStatus]     = useState<AlertStatus | "all">("all");
 
+  const { data, isLoading } = useQuery({
+    queryKey: ["mentions", brandId],
+    queryFn: () => api.get<{ mentions: Alert[] }>(`/graph/brand/${brandId}/mentions`),
+  });
+
+  const rawAlerts = (data?.mentions ?? []).map((a) => ({
+    ...a,
+    status: statusOverrides[a.id] ?? a.status,
+  }));
+
+  const alerts = [...rawAlerts].sort(
+    (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
+  );
+
   function updateStatus(id: string, status: AlertStatus) {
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+    setStatusOverrides((prev) => ({ ...prev, [id]: status }));
   }
 
   const filtered = alerts.filter(
@@ -151,12 +181,12 @@ export default function Threats() {
             <p className="text-muted-foreground">Track and respond to brand reputation threats.</p>
           </div>
           <div className="flex gap-3 text-sm">
-            <div className="rounded-lg border px-3 py-2 text-center">
-              <div className="text-2xl font-bold text-red-600">{openCount}</div>
+            <div className="rounded-lg border bg-card px-3 py-2 text-center">
+              <div className="text-2xl font-bold text-red-400">{openCount}</div>
               <div className="text-xs text-muted-foreground">Open</div>
             </div>
-            <div className="rounded-lg border px-3 py-2 text-center">
-              <div className="text-2xl font-bold text-orange-600">{criticalCount}</div>
+            <div className="rounded-lg border bg-card px-3 py-2 text-center">
+              <div className="text-2xl font-bold text-orange-400">{criticalCount}</div>
               <div className="text-xs text-muted-foreground">Critical</div>
             </div>
           </div>
@@ -165,7 +195,7 @@ export default function Threats() {
         {/* Filters */}
         <div className="flex gap-3 flex-wrap">
           <select
-            className="rounded-md border px-3 py-1.5 text-sm"
+            className="rounded-md border bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             value={filterSeverity}
             onChange={(e) => setFilterSeverity(e.target.value as AlertSeverity | "all")}
           >
@@ -176,7 +206,7 @@ export default function Threats() {
             <option value="low">Low</option>
           </select>
           <select
-            className="rounded-md border px-3 py-1.5 text-sm"
+            className="rounded-md border bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as AlertStatus | "all")}
           >
@@ -189,10 +219,18 @@ export default function Threats() {
         </div>
 
         {/* Alert list */}
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+        ) : filtered.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No threats match your filters.</p>
+              <p className="text-muted-foreground">
+                {alerts.length === 0 ? "No threats detected yet. Scouts will report mentions here." : "No threats match your filters."}
+              </p>
             </CardContent>
           </Card>
         ) : (

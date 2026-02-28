@@ -93,13 +93,18 @@ async def stop_monitoring(request: StopMonitoringRequest):
 
 
 @router.get("/status")
-async def monitoring_status():
-    """List all active scouts with latest info."""
+async def monitoring_status(brand_name: str | None = None):
+    """List scouts, optionally filtered by brand name."""
     client = _yutori()
     try:
         scouts = await client.list_scouts()
         result = []
         for s in scouts:
+            # Filter by brand if requested — match against display_name or query
+            if brand_name:
+                haystack = (s.get("display_name", "") + " " + s.get("query", "")).lower()
+                if brand_name.lower() not in haystack:
+                    continue
             result.append({
                 "id": s.get("id"),
                 "display_name": s.get("display_name", ""),

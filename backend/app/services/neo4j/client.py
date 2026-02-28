@@ -261,6 +261,103 @@ class Neo4jClient:
             for r in records
         ]
 
+    # ── Brand mentions list ────────────────────────────────────
+
+    async def get_brand_mentions(self, brand_id: str) -> list[dict[str, Any]]:
+        """Return all mentions for a brand with derived status."""
+        query = """
+        MATCH (m:Mention)-[:ABOUT]->(b:Brand {id: $brand_id})
+        MATCH (m)-[:FOUND_ON]->(p:Platform)
+        OPTIONAL MATCH (c:Correction)-[:CORRECTS]->(m)
+        RETURN m.id AS id,
+               m.claim AS claim,
+               m.accuracy_score AS accuracy_score,
+               m.severity AS severity,
+               m.detected_at AS detected_at,
+               p.name AS platform,
+               c IS NOT NULL AS has_correction
+        ORDER BY m.detected_at DESC
+        """
+        records = await self.run_query(query, {"brand_id": brand_id})
+        mentions = []
+        for r in records:
+            if r.get("has_correction"):
+                status = "corrected"
+            elif (r.get("accuracy_score") or 0) < 70:
+                status = "open"
+            else:
+                status = "dismissed"
+            mentions.append({
+                "id": r["id"],
+                "claim": r["claim"],
+                "accuracy_score": r["accuracy_score"],
+                "severity": r["severity"],
+                "detected_at": r["detected_at"],
+                "platform": r["platform"],
+                "status": status,
+                "context": f"Detected on {r['platform']} with accuracy score {r['accuracy_score']}%",
+                "source_url": "",
+                "suggested_correction": "",
+            })
+        return mentions
+
+    # ── Brand corrections list ───────────────────────────────
+
+    async def get_brand_corrections(self, brand_id: str) -> list[dict[str, Any]]:
+        """Return all corrections for a brand."""
+        query = """
+        MATCH (c:Correction)-[:FOR_BRAND]->(b:Brand {id: $brand_id})
+        OPTIONAL MATCH (c)-[:CORRECTS]->(m:Mention)
+        OPTIONAL MATCH (m)-[:FOUND_ON]->(p:Platform)
+        RETURN c.id AS id,
+               c.content AS correction,
+               c.type AS type,
+               c.status AS status,
+               c.created_at AS created_at,
+               m.claim AS claim,
+               p.name AS platform
+        ORDER BY c.created_at DESC
+        """
+        records = await self.run_query(query, {"brand_id": brand_id})
+        return [
+            {
+                "id": r["id"],
+                "correction": r["correction"] or "",
+                "type": r["type"] or "blog",
+                "status": r["status"] or "draft",
+                "created_at": r["created_at"] or "",
+                "claim": r["claim"] or "",
+                "platform": r["platform"] or "",
+            }
+            for r in records
+        ]
+
+    # ── Accuracy trend ───────────────────────────────────────
+
+    async def get_accuracy_trend(self, brand_id: str) -> list[dict[str, Any]]:
+        """Return daily average accuracy per platform for trend chart."""
+        query = """
+        MATCH (m:Mention)-[:ABOUT]->(b:Brand {id: $brand_id})
+        MATCH (m)-[:FOUND_ON]->(p:Platform)
+        WHERE m.detected_at IS NOT NULL
+        WITH substring(m.detected_at, 0, 10) AS day,
+             p.name AS platform,
+             avg(m.accuracy_score) AS avg_acc
+        RETURN day, platform, round(avg_acc) AS accuracy
+        ORDER BY day
+        """
+        records = await self.run_query(query, {"brand_id": brand_id})
+
+        # Pivot into [{date, chatgpt, claude, perplexity, gemini}]
+        by_day: dict[str, dict[str, Any]] = {}
+        for r in records:
+            day = r["day"]
+            if day not in by_day:
+                by_day[day] = {"date": day}
+            by_day[day][r["platform"]] = r["accuracy"]
+
+        return list(by_day.values())
+
     # ── Full graph for visualization ────────────────────────────
 
     async def get_brand_network(self, brand_id: str) -> dict[str, Any]:

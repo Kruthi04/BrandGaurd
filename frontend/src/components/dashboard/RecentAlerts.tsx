@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { MockAlert, AlertSeverity } from "@/lib/mockData";
+import type { Alert, AlertSeverity } from "@/types";
 
 interface RecentAlertsProps {
-  alerts: MockAlert[];
+  alerts: Alert[];
 }
 
 function severityVariant(s: AlertSeverity) {

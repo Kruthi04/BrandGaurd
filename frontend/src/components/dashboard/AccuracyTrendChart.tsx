@@ -17,44 +17,44 @@ interface AccuracyTrendChartProps {
 }
 
 const LINES = [
-  { key: "claude",     color: "#8b5cf6", label: "Claude"     },
-  { key: "chatgpt",    color: "#3b82f6", label: "ChatGPT"    },
-  { key: "perplexity", color: "#f59e0b", label: "Perplexity" },
-  { key: "gemini",     color: "#ef4444", label: "Gemini"     },
+  { key: "claude",     color: "#a78bfa", label: "Claude"     },
+  { key: "chatgpt",    color: "#60a5fa", label: "ChatGPT"    },
+  { key: "perplexity", color: "#fbbf24", label: "Perplexity" },
+  { key: "gemini",     color: "#f87171", label: "Gemini"     },
 ];
 
 export default function AccuracyTrendChart({ data }: AccuracyTrendChartProps) {
   return (
-    <Card className="col-span-full md:col-span-2">
-      <CardHeader>
-        <CardTitle className="text-lg">7-Day Accuracy Trend</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={data} margin={{ top: 5, right: 16, left: -16, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-            <YAxis domain={[50, 100]} tick={{ fontSize: 11 }} unit="%" />
-            <Tooltip
-              formatter={(value: number) => [`${value.toFixed(1)}%`, ""]}
-              contentStyle={{ fontSize: 12 }}
-            />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            {LINES.map(({ key, color, label }) => (
-              <Line
-                key={key}
-                type="monotone"
-                dataKey={key}
-                name={label}
-                stroke={color}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
+    <ResponsiveContainer width="100%" height={220}>
+      <LineChart data={data} margin={{ top: 5, right: 16, left: -16, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 28% 16%)" />
+        <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(215 20% 60%)" }} stroke="hsl(215 28% 20%)" />
+        <YAxis domain={[50, 100]} tick={{ fontSize: 11, fill: "hsl(215 20% 60%)" }} unit="%" stroke="hsl(215 28% 20%)" />
+        <Tooltip
+          formatter={(value: number) => [`${value.toFixed(1)}%`, ""]}
+          contentStyle={{
+            fontSize: 12,
+            backgroundColor: "hsl(222 47% 5%)",
+            border: "1px solid hsl(215 28% 16%)",
+            borderRadius: 8,
+            color: "hsl(210 40% 96%)",
+          }}
+          labelStyle={{ color: "hsl(215 20% 60%)" }}
+        />
+        <Legend wrapperStyle={{ fontSize: 12, color: "hsl(215 20% 60%)" }} />
+        {LINES.map(({ key, color, label }) => (
+          <Line
+            key={key}
+            type="monotone"
+            dataKey={key}
+            name={label}
+            stroke={color}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
   );
 }

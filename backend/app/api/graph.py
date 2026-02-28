@@ -108,6 +108,41 @@ async def get_brand_sources(brand_id: str, limit: int = 20):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.get("/brand/{brand_id}/mentions")
+async def get_brand_mentions(brand_id: str):
+    """List all mentions for a brand with derived status."""
+    client = _client()
+    try:
+        mentions = await client.get_brand_mentions(brand_id)
+        return {"mentions": mentions}
+    except Exception as exc:
+        logger.error("get_brand_mentions failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/brand/{brand_id}/corrections")
+async def get_brand_corrections(brand_id: str):
+    """List all corrections for a brand."""
+    client = _client()
+    try:
+        corrections = await client.get_brand_corrections(brand_id)
+        return {"corrections": corrections}
+    except Exception as exc:
+        logger.error("get_brand_corrections failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/brand/{brand_id}/trend")
+async def get_accuracy_trend(brand_id: str):
+    """Daily accuracy trend per platform."""
+    client = _client()
+    try:
+        return await client.get_accuracy_trend(brand_id)
+    except Exception as exc:
+        logger.error("get_accuracy_trend failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.get("/brand/{brand_id}/network")
 async def get_brand_network(brand_id: str):
     """Full graph data (nodes + edges) for visualization."""

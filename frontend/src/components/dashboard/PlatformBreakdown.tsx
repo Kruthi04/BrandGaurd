@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface PlatformStat {
   accuracy: number;
   mentions: number;
-  trend: "up" | "down" | "stable";
+  trend?: "up" | "down" | "stable";
 }
 
 interface PlatformBreakdownProps {
@@ -47,9 +47,11 @@ export default function PlatformBreakdown({ platforms }: PlatformBreakdownProps)
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">{PLATFORM_LABELS[key] ?? key}</span>
               <div className="flex items-center gap-2">
-                <span className={`text-xs font-medium ${TREND_COLOR[stat.trend]}`}>
-                  {TREND_ICON[stat.trend]}
-                </span>
+                {stat.trend && (
+                  <span className={`text-xs font-medium ${TREND_COLOR[stat.trend]}`}>
+                    {TREND_ICON[stat.trend]}
+                  </span>
+                )}
                 <span className="font-semibold">{stat.accuracy.toFixed(1)}%</span>
               </div>
             </div>

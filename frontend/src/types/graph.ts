@@ -2,7 +2,7 @@
 export interface GraphNode {
   id: string;
   label: string;
-  type: "brand" | "person" | "platform" | "mention" | "threat";
+  type: "brand" | "person" | "platform" | "mention" | "threat" | "source" | "correction";
   properties?: Record<string, unknown>;
 }
 

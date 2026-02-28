@@ -1,21 +1,65 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import GraphVisualization from "@/components/graph/GraphVisualization";
-import { mockGraphData } from "@/lib/mockData";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
+import { api } from "@/lib/api";
+import { useActiveBrand } from "@/lib/brand";
 
 type NodeType = "all" | "brand" | "platform" | "mention" | "source" | "correction";
 
+interface BackendNode {
+  id: string;
+  label: string;
+  type: string;
+  color?: string;
+  accuracy?: number;
+}
+
+interface BackendEdge {
+  source: string;
+  target: string;
+  type: string;
+}
+
+interface BackendGraph {
+  nodes: BackendNode[];
+  edges: BackendEdge[];
+}
+
 export default function GraphExplorer() {
+  const brandId = useActiveBrand();
   const [filterType, setFilterType] = useState<NodeType>("all");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["network", brandId],
+    queryFn: async () => {
+      const raw = await api.get<BackendGraph>(`/graph/brand/${brandId}/network`);
+      return {
+        nodes: raw.nodes.map((n) => ({
+          ...n,
+          type: n.type.toLowerCase(),
+        })),
+        links: raw.edges.map((e) => ({
+          source: e.source,
+          target: e.target,
+          relationship: e.type,
+        })),
+      };
+    },
+  });
+
+  const graphData = data ?? { nodes: [], links: [] };
 
   const filtered = {
     nodes: filterType === "all"
-      ? mockGraphData.nodes
-      : mockGraphData.nodes.filter((n) => n.type === filterType),
-    links: mockGraphData.links,
+      ? graphData.nodes
+      : graphData.nodes.filter((n) => n.type === filterType),
+    links: graphData.links,
   };
 
-  const counts = mockGraphData.nodes.reduce<Record<string, number>>((acc, n) => {
+  const counts = graphData.nodes.reduce<Record<string, number>>((acc, n) => {
     acc[n.type] = (acc[n.type] ?? 0) + 1;
     return acc;
   }, {});
@@ -34,7 +78,7 @@ export default function GraphExplorer() {
           {/* Stats */}
           <div className="flex gap-3 text-sm flex-wrap">
             {Object.entries(counts).map(([type, count]) => (
-              <div key={type} className="rounded-lg border px-3 py-2 text-center">
+              <div key={type} className="rounded-lg border bg-card px-3 py-2 text-center">
                 <div className="text-xl font-bold">{count}</div>
                 <div className="text-xs text-muted-foreground capitalize">{type}s</div>
               </div>
@@ -51,7 +95,7 @@ export default function GraphExplorer() {
               className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors capitalize ${
                 filterType === t
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "hover:bg-muted"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
             >
               {t === "all" ? "All nodes" : t}
@@ -59,7 +103,17 @@ export default function GraphExplorer() {
           ))}
         </div>
 
-        <GraphVisualization data={filtered as never} />
+        {isLoading ? (
+          <Skeleton className="h-96" />
+        ) : graphData.nodes.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">No graph data available. Onboard a brand and run scouts to populate the knowledge graph.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <GraphVisualization data={filtered as never} />
+        )}
       </div>
     </AppLayout>
   );

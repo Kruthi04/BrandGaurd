@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { mockCorrections, type MockCorrection, type CorrectionStatus } from "@/lib/mockData";
+import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/lib/api";
+import { useActiveBrand } from "@/lib/brand";
+import type { Correction, CorrectionStatus } from "@/types";
 
 const TYPE_LABELS: Record<string, string> = {
   blog:  "Blog Post",
@@ -25,7 +29,7 @@ function CorrectionCard({
   correction,
   onPublish,
 }: {
-  correction: MockCorrection;
+  correction: Correction;
   onPublish: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -76,21 +80,21 @@ function CorrectionCard({
           <div className="space-y-3 pt-2 border-t">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">❌ Incorrect claim</p>
-                <p className="text-sm bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 rounded p-2">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Incorrect claim</p>
+                <p className="text-sm text-red-400 bg-red-500/10 rounded p-2">
                   {correction.claim}
                 </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">✅ Correction</p>
-                <p className="text-sm bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 rounded p-2">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Correction</p>
+                <p className="text-sm text-emerald-400 bg-emerald-500/10 rounded p-2">
                   {correction.correction}
                 </p>
               </div>
             </div>
             {correction.status === "draft" && (
               <Button size="sm" onClick={handlePublish} disabled={publishing}>
-                {publishing ? "Publishing…" : "Publish Correction"}
+                {publishing ? "Publishing..." : "Publish Correction"}
               </Button>
             )}
           </div>
@@ -101,15 +105,23 @@ function CorrectionCard({
 }
 
 export default function Corrections() {
-  const [corrections, setCorrections] = useState(mockCorrections);
+  const brandId = useActiveBrand();
+  const [localPublished, setLocalPublished] = useState<Record<string, string>>({});
   const [filterStatus, setFilterStatus] = useState<CorrectionStatus | "all">("all");
 
+  const { data, isLoading } = useQuery({
+    queryKey: ["corrections", brandId],
+    queryFn: () => api.get<{ corrections: Correction[] }>(`/graph/brand/${brandId}/corrections`),
+  });
+
+  const corrections = (data?.corrections ?? []).map((c) =>
+    localPublished[c.id]
+      ? { ...c, status: "published" as const, published_at: localPublished[c.id] }
+      : c
+  );
+
   function handlePublish(id: string) {
-    setCorrections((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, status: "published" as const, published_at: new Date().toISOString() } : c
-      )
-    );
+    setLocalPublished((prev) => ({ ...prev, [id]: new Date().toISOString() }));
   }
 
   const filtered =
@@ -127,12 +139,12 @@ export default function Corrections() {
             <p className="text-muted-foreground">Review and publish AI-generated brand corrections.</p>
           </div>
           <div className="flex gap-3 text-sm">
-            <div className="rounded-lg border px-3 py-2 text-center">
-              <div className="text-2xl font-bold text-green-600">{publishedCount}</div>
+            <div className="rounded-lg border bg-card px-3 py-2 text-center">
+              <div className="text-2xl font-bold text-emerald-400">{publishedCount}</div>
               <div className="text-xs text-muted-foreground">Published</div>
             </div>
-            <div className="rounded-lg border px-3 py-2 text-center">
-              <div className="text-2xl font-bold text-yellow-600">{draftCount}</div>
+            <div className="rounded-lg border bg-card px-3 py-2 text-center">
+              <div className="text-2xl font-bold text-yellow-400">{draftCount}</div>
               <div className="text-xs text-muted-foreground">Drafts</div>
             </div>
           </div>
@@ -145,7 +157,9 @@ export default function Corrections() {
               key={s}
               onClick={() => setFilterStatus(s)}
               className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors ${
-                filterStatus === s ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"
+                filterStatus === s
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
             >
               {s === "all" ? "All" : s}
@@ -153,10 +167,17 @@ export default function Corrections() {
           ))}
         </div>
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+        ) : filtered.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No corrections match your filter.</p>
+              <p className="text-muted-foreground">
+                {corrections.length === 0 ? "No corrections yet. Corrections will appear here after auto-correcting threats." : "No corrections match your filter."}
+              </p>
             </CardContent>
           </Card>
         ) : (
