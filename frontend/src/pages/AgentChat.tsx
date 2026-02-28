@@ -11,8 +11,8 @@ export default function AgentChat() {
     <AppLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agent Chat</h1>
-          <p className="text-muted-foreground">
+          <h1 className="font-bold tracking-tight">Agent Chat</h1>
+          <p className="text-base text-muted-foreground mt-1">
             Interact with the BrandGuard AI agent.
           </p>
         </div>

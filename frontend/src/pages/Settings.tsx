@@ -102,8 +102,8 @@ export default function Settings() {
     <AppLayout>
       <div className="space-y-6 max-w-2xl">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">Configure BrandGuard and onboard new brands.</p>
+          <h1 className="font-bold tracking-tight">Settings</h1>
+          <p className="text-base text-muted-foreground mt-1">Configure BrandGuard and onboard new brands.</p>
         </div>
 
         {/* Brand Onboarding */}

@@ -113,6 +113,124 @@ class ModulateService:
         )
 
 
+    async def analyze_youtube(
+        self,
+        youtube_url: str,
+        brand_name: str,
+    ) -> dict[str, Any]:
+        """Download audio from a YouTube video and analyze it for brand mentions.
+
+        Args:
+            youtube_url: YouTube video URL.
+            brand_name: Brand name to filter mentions by.
+
+        Returns:
+            Transcript, brand mentions, video metadata, and sentiment data.
+        """
+        import tempfile
+        import os
+        import subprocess
+        import json as _json
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_template = os.path.join(tmpdir, "audio.%(ext)s")
+
+            js_runtime = ["--js-runtimes", "node", "--remote-components", "ejs:github"]
+
+            # Extract video metadata
+            meta_cmd = [
+                "yt-dlp", *js_runtime, "--dump-json", "--no-download", youtube_url,
+            ]
+            meta_result = subprocess.run(
+                meta_cmd, capture_output=True, text=True, timeout=30,
+            )
+            video_meta = {}
+            if meta_result.returncode == 0:
+                try:
+                    info = _json.loads(meta_result.stdout)
+                    video_meta = {
+                        "title": info.get("title", ""),
+                        "channel": info.get("channel", info.get("uploader", "")),
+                        "duration_seconds": info.get("duration", 0),
+                        "view_count": info.get("view_count", 0),
+                        "upload_date": info.get("upload_date", ""),
+                        "description": (info.get("description") or "")[:500],
+                    }
+                except _json.JSONDecodeError:
+                    pass
+
+            # Download audio (extract only, keep original format to avoid ffmpeg dependency)
+            dl_cmd = [
+                "yt-dlp",
+                *js_runtime,
+                "-x",
+                "-o", output_template,
+                "--no-playlist",
+                "--max-filesize", "50M",
+                youtube_url,
+            ]
+            dl_result = subprocess.run(
+                dl_cmd, capture_output=True, text=True, timeout=180,
+            )
+            if dl_result.returncode != 0:
+                raise RuntimeError(f"Failed to download audio: {dl_result.stderr[:300]}")
+
+            # Find the downloaded file (extension varies)
+            actual_path = None
+            for f in os.listdir(tmpdir):
+                if f.startswith("audio.") and not f.endswith(".part"):
+                    actual_path = os.path.join(tmpdir, f)
+                    break
+
+            if not actual_path or not os.path.exists(actual_path):
+                raise RuntimeError("Audio file not found after download")
+
+            with open(actual_path, "rb") as f:
+                audio_bytes = f.read()
+
+            filename = os.path.basename(actual_path)
+
+        if self.api_key:
+            result = await self.analyze_audio(
+                audio_bytes=audio_bytes,
+                filename=filename,
+                brand_name=brand_name,
+            )
+        else:
+            brand_lower = brand_name.lower()
+            desc_lower = video_meta.get("description", "").lower()
+            title_lower = video_meta.get("title", "").lower()
+            mentions = []
+            if brand_lower in title_lower:
+                mentions.append({
+                    "text": video_meta.get("title", ""),
+                    "location": "title",
+                    "sentiment": "neutral",
+                })
+            if brand_lower in desc_lower:
+                for line in video_meta.get("description", "").split("\n"):
+                    if brand_lower in line.lower():
+                        mentions.append({
+                            "text": line.strip()[:200],
+                            "location": "description",
+                            "sentiment": "neutral",
+                        })
+
+            result = {
+                "text": f"[Audio downloaded: {len(audio_bytes)} bytes — Modulate API key required for full transcription]",
+                "duration_ms": video_meta.get("duration_seconds", 0) * 1000,
+                "brand_mentions": mentions,
+                "total_mentions": len(mentions),
+                "all_utterances": [],
+                "note": "Set MODULATE_API_KEY for full speech-to-text transcription and sentiment analysis",
+            }
+
+        result["video_metadata"] = video_meta
+        result["youtube_url"] = youtube_url
+        result["audio_size_bytes"] = len(audio_bytes)
+        return result
+
+
 def _content_type_for(filename: str) -> str:
     ext = filename.rsplit(".", 1)[-1].lower()
     mapping = {

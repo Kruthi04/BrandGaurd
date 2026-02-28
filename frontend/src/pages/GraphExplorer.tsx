@@ -63,8 +63,8 @@ export default function GraphExplorer() {
       <div className="space-y-6">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Graph Explorer</h1>
-            <p className="text-muted-foreground">
+            <h1 className="font-bold tracking-tight">Graph Explorer</h1>
+            <p className="text-base text-muted-foreground mt-1">
               Visualize brand entity relationships from the Neo4j knowledge graph.
             </p>
           </div>

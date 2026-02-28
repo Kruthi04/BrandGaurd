@@ -108,6 +108,44 @@ async def get_brand_sources(brand_id: str, limit: int = 20):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.get("/brand/{brand_id}/threats")
+async def get_brand_threats(brand_id: str, limit: int = 50):
+    """Return inaccurate mentions as threat alerts for the dashboard."""
+    client = _client()
+    try:
+        query = """
+        MATCH (m:Mention)-[:ABOUT]->(b:Brand {id: $brand_id})
+        MATCH (m)-[:FOUND_ON]->(p:Platform)
+        OPTIONAL MATCH (m)-[:SOURCED_FROM]->(s:Source)
+        WHERE m.accuracy_score < 70
+        RETURN m.id AS id, m.claim AS claim, m.accuracy_score AS accuracy_score,
+               m.severity AS severity, m.detected_at AS detected_at,
+               p.name AS platform, collect(DISTINCT s.url) AS source_urls
+        ORDER BY m.accuracy_score ASC
+        LIMIT $limit
+        """
+        records = await client.run_query(query, {"brand_id": brand_id, "limit": limit})
+        threats = []
+        for r in records:
+            sev = r.get("severity", "medium")
+            threats.append({
+                "id": r["id"],
+                "severity": sev,
+                "platform": (r.get("platform") or "unknown").title(),
+                "claim": r.get("claim", ""),
+                "context": f"AI platform {(r.get('platform') or 'unknown').title()} made this claim about your brand with {r.get('accuracy_score', 0):.0f}% accuracy.",
+                "accuracy_score": round(r.get("accuracy_score", 0), 1),
+                "status": "open",
+                "detected_at": r.get("detected_at", ""),
+                "source_url": (r.get("source_urls") or [""])[0] if r.get("source_urls") else "",
+                "suggested_correction": f"This claim has a low accuracy score ({r.get('accuracy_score', 0):.0f}%). Investigate and publish a correction.",
+            })
+        return {"threats": threats, "total": len(threats)}
+    except Exception as exc:
+        logger.error("get_brand_threats failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.get("/brand/{brand_id}/network")
 async def get_brand_network(brand_id: str):
     """Full graph data (nodes + edges) for visualization."""

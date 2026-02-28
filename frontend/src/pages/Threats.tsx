@@ -148,14 +148,10 @@ export default function Threats() {
   const brandId = getActiveBrand();
 
   const { data: fetchedAlerts, isLoading } = useQuery({
-    queryKey: ["brandSources", brandId],
+    queryKey: ["brandThreats", brandId],
     queryFn: async () => {
-      const res = await api.get<{ sources: MockAlert[] } | MockAlert[]>(`/graph/brand/${brandId}/sources`);
-      // Backend returns { sources: [...] }, unwrap it
-      if (res && !Array.isArray(res) && Array.isArray((res as { sources: MockAlert[] }).sources)) {
-        return (res as { sources: MockAlert[] }).sources;
-      }
-      return Array.isArray(res) ? res : [];
+      const res = await api.get<{ threats: MockAlert[]; total: number }>(`/graph/brand/${brandId}/threats`);
+      return res.threats ?? [];
     },
     retry: 1,
   });
@@ -198,8 +194,8 @@ export default function Threats() {
       <div className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Threat Monitor</h1>
-            <p className="text-muted-foreground">Track and respond to brand reputation threats.</p>
+            <h1 className="font-bold tracking-tight">Threat Monitor</h1>
+            <p className="text-base text-muted-foreground mt-1">Track and respond to brand reputation threats.</p>
           </div>
           <div className="flex gap-3 text-sm">
             <div className="rounded-lg border px-3 py-2 text-center">

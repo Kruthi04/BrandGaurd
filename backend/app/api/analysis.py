@@ -282,3 +282,28 @@ async def analyze_audio(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return result
+
+
+class YouTubeAnalysisRequest(BaseModel):
+    youtube_url: str
+    brand_name: str
+
+
+@router.post("/youtube")
+async def analyze_youtube(request: YouTubeAnalysisRequest) -> dict[str, Any]:
+    """Analyze a YouTube video for brand mentions.
+
+    Downloads audio from the YouTube URL, transcribes it using Modulate Velma-2
+    (if API key is set), and extracts brand mentions with sentiment data.
+    """
+    service = ModulateService()
+    try:
+        result = await service.analyze_youtube(
+            youtube_url=request.youtube_url,
+            brand_name=request.brand_name,
+        )
+    except RuntimeError as exc:
+        logger.error("YouTube analysis error: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return result

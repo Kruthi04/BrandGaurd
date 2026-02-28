@@ -15,7 +15,7 @@ type Tab = "scouts" | "audio";
 
 export default function Monitoring() {
   const [activeTab, setActiveTab]  = useState<Tab>("scouts");
-  const [scouts, setScouts]        = useState<Scout[]>(mockScouts as Scout[]);
+  const [scouts, setScouts]        = useState<Scout[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
@@ -23,12 +23,21 @@ export default function Monitoring() {
     queryKey: ["monitoringStatus"],
     queryFn: async () => {
       const res = await api.get<{ scouts: Scout[] } | Scout[]>("/monitoring/status");
-      return Array.isArray(res) ? res : res.scouts ?? [];
+      const list = Array.isArray(res) ? res : (res as { scouts: Scout[] }).scouts ?? [];
+      return list.map((s: Record<string, unknown>) => ({
+        id: (s.id ?? "") as string,
+        brand_id: (s.brand_id ?? "") as string,
+        query: (s.query ?? "") as string,
+        display_name: (s.display_name ?? s.query ?? "") as string,
+        status: (s.status ?? "active") as Scout["status"],
+        output_interval: (s.output_interval ?? 3600) as number,
+        created_at: (s.created_at ?? "") as string,
+        next_run: (s.next_run ?? s.next_run_timestamp ?? undefined) as string | undefined,
+      }));
     },
     retry: 1,
   });
 
-  // Sync fetched data into local state once available
   useEffect(() => {
     if (fetchedScouts && !initialized) {
       setScouts(fetchedScouts);
@@ -68,8 +77,8 @@ export default function Monitoring() {
       <div className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Monitoring</h1>
-            <p className="text-muted-foreground">
+            <h1 className="font-bold tracking-tight">Monitoring</h1>
+            <p className="text-base text-muted-foreground mt-1">
               Manage Yutori scouts, Tavily web searches, and audio analysis.
             </p>
           </div>

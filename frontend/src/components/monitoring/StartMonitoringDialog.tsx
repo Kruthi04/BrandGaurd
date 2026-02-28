@@ -27,20 +27,23 @@ export default function StartMonitoringDialog({ onClose, onCreated }: StartMonit
     if (!brandName.trim()) return;
     setLoading(true);
     try {
-      // POST to /monitoring/start with correct payload {brand_id, brand_name}
-      const data = await api.post<{ id: string; display_name: string; query: string }>("/monitoring/start", {
+      const data = await api.post<{ scout_id: string; status: string }>("/monitoring/start", {
         brand_id: slugify(brandName),
         brand_name: brandName.trim(),
+        interval: Number(interval),
       });
 
-      onCreated(data);
+      onCreated({
+        id: data.scout_id,
+        display_name: `BrandGuard — ${brandName.trim()}`,
+        query: `Monitor what AI chatbots say about "${brandName.trim()}"`,
+      });
       toast.success(`Scout created for "${brandName}"`);
       onClose();
     } catch {
-      // Fallback: mock success for demo
       onCreated({
         id: `s-${Date.now()}`,
-        display_name: `${brandName} — AI Monitor`,
+        display_name: `BrandGuard — ${brandName.trim()}`,
         query: `Monitor mentions of "${brandName}" across AI platforms`,
       });
       toast.success(`Scout created for "${brandName}" (demo mode)`);

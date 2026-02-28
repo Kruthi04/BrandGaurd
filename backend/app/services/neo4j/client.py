@@ -289,7 +289,7 @@ class Neo4jClient:
                 bid = f"brand-{brand['id']}"
                 nodes[bid] = {
                     "id": bid,
-                    "type": "Brand",
+                    "type": "brand",
                     "label": brand.get("name", brand["id"]),
                     "color": NODE_COLORS["Brand"],
                 }
@@ -302,12 +302,12 @@ class Neo4jClient:
                 color_key = "Mention_accurate" if is_acc else "Mention_inaccurate"
                 nodes[mid] = {
                     "id": mid,
-                    "type": "Mention",
+                    "type": "mention",
                     "label": (m.get("claim") or "")[:50],
                     "color": NODE_COLORS[color_key],
                     "accuracy": m.get("accuracy_score"),
                 }
-                edges.append({"source": mid, "target": f"brand-{brand_id}", "type": "ABOUT"})
+                edges.append({"source": mid, "target": f"brand-{brand_id}", "relationship": "ABOUT"})
 
             for p in record.get("platforms") or []:
                 if p is None:
@@ -315,7 +315,7 @@ class Neo4jClient:
                 pid = f"platform-{p['name']}"
                 nodes[pid] = {
                     "id": pid,
-                    "type": "Platform",
+                    "type": "platform",
                     "label": p["name"].title(),
                     "color": NODE_COLORS["Platform"],
                 }
@@ -326,7 +326,7 @@ class Neo4jClient:
                 sid = f"source-{s['url']}"
                 nodes[sid] = {
                     "id": sid,
-                    "type": "Source",
+                    "type": "source",
                     "label": s.get("domain", s["url"]),
                     "color": NODE_COLORS["Source"],
                 }
@@ -337,7 +337,7 @@ class Neo4jClient:
                 cid = f"correction-{c['id']}"
                 nodes[cid] = {
                     "id": cid,
-                    "type": "Correction",
+                    "type": "correction",
                     "label": (c.get("content") or "")[:40],
                     "color": NODE_COLORS["Correction"],
                 }
@@ -363,7 +363,7 @@ class Neo4jClient:
                     edges.append({
                         "source": f"mention-{mid}",
                         "target": f"platform-{r['pname']}",
-                        "type": "FOUND_ON",
+                        "relationship": "FOUND_ON",
                     })
                     seen_edges.add(key_found)
 
@@ -372,7 +372,7 @@ class Neo4jClient:
                     edges.append({
                         "source": f"mention-{mid}",
                         "target": f"source-{r['surl']}",
-                        "type": "SOURCED_FROM",
+                        "relationship": "SOURCED_FROM",
                     })
                     seen_edges.add(key_src)
 
@@ -382,7 +382,7 @@ class Neo4jClient:
                     edges.append({
                         "source": f"source-{r['surl']}",
                         "target": f"platform-{r['p2name']}",
-                        "type": "FEEDS",
+                        "relationship": "FEEDS",
                     })
                     seen_edges.add(key_feeds)
 
@@ -392,7 +392,7 @@ class Neo4jClient:
                     edges.append({
                         "source": f"correction-{r['cid']}",
                         "target": f"mention-{mid}",
-                        "type": "CORRECTS",
+                        "relationship": "CORRECTS",
                     })
                     seen_edges.add(key_corr)
 

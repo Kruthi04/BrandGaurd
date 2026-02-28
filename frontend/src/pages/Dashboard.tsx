@@ -73,8 +73,8 @@ export default function Dashboard() {
     <AppLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Brand reputation overview for <strong>{brandId}</strong>.</p>
+          <h1 className="font-bold tracking-tight">Dashboard</h1>
+          <p className="text-base text-muted-foreground mt-1">Brand reputation overview for <strong>{brandId}</strong>.</p>
         </div>
 
         {/* Top row: Health Score + Platform Breakdown + Active Scouts */}

@@ -141,8 +141,8 @@ export default function Corrections() {
       <div className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Corrections</h1>
-            <p className="text-muted-foreground">Review and publish AI-generated brand corrections.</p>
+            <h1 className="font-bold tracking-tight">Corrections</h1>
+            <p className="text-base text-muted-foreground mt-1">Review and publish AI-generated brand corrections.</p>
           </div>
           <div className="flex gap-3 text-sm">
             <div className="rounded-lg border px-3 py-2 text-center">

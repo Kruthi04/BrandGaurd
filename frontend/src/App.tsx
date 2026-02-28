@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Monitoring from "./pages/Monitoring";
 import GraphExplorer from "./pages/GraphExplorer";
@@ -51,7 +52,8 @@ const App = () => (
         <Toaster />
         <BrowserRouter>
           <Routes>
-            <Route path="/"            element={<Dashboard />} />
+            <Route path="/"            element={<Landing />} />
+            <Route path="/dashboard"   element={<Dashboard />} />
             <Route path="/monitoring"  element={<Monitoring />} />
             <Route path="/graph"       element={<GraphExplorer />} />
             <Route path="/threats"     element={<Threats />} />
